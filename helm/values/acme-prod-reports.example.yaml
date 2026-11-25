@@ -1,0 +1,13 @@
+# Generated from `terraform output gke_helm_values` (acme-prod / reports). Do not hand-edit tag: change catalog/customers.yaml.
+image:
+  repository: us-central1-docker.pkg.dev/acme-plat-shared/products/reports
+  tag: "1.9.0"
+serviceAccount:
+  gsa: p-reports@pl-acme-prod.iam.gserviceaccount.com
+customer: acme
+env: prod
+config:
+  SQL_CONNECTION: pl-acme-data:us-central1:acme-prod
+  SHARED_BUCKET: pl-acme-data-shared
+gateway:
+  host: reports.acme.example.com

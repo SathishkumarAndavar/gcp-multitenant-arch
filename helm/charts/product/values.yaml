@@ -1,0 +1,40 @@
+# Defaults. Per customer-env overrides are generated from `terraform output gke_helm_values`
+# into helm/values/<customer>-<env>.yaml and layered on top of helm/values/env-<env>.yaml.
+customer: ""
+env: dev
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+serviceAccount:
+  gsa: ""            # GCP service account for Workload Identity
+containerPort: 8080
+replicaCount: 2
+resources:
+  requests: { cpu: 250m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+pdb:
+  enabled: true
+  maxUnavailable: 1
+probes:
+  path: /healthz
+config: {}           # customer-specific env vars (rendered into a ConfigMap)
+secrets: []          # names of Secret Manager-synced secrets mounted as env (via External Secrets / CSI)
+gateway:
+  enabled: true
+  className: gke-l7-global-external-managed
+  host: ""           # e.g. reports.dev.acme.example.com
+  gatewayName: ""    # name of an existing shared Gateway to attach to; leave empty and this chart creates one per release
+  gatewayNamespace: "" # namespace of that shared Gateway (it must allow routes from other namespaces)
+networkPolicy:
+  enabled: true
+  allowFromNamespaces: []
+podSecurityContext:
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532

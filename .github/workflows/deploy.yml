@@ -1,0 +1,42 @@
+name: deploy
+on:
+  pull_request: { paths: ["terraform/**", "catalog/**", "helm/**"] }
+  push: { branches: [main], paths: ["terraform/**", "catalog/**", "helm/**"] }
+permissions: { id-token: write, contents: read }
+env:
+  WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+  DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: azure/setup-helm@v4
+      - run: terraform fmt -check -recursive terraform
+      - run: |
+          for d in platform customers; do (cd terraform/live/$d && terraform init -backend=false && terraform validate); done
+      - run: helm lint helm/charts/product -f helm/values/env-prod.yaml -f helm/values/acme-prod-reports.example.yaml
+  plan:
+    needs: validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with: { workload_identity_provider: "${{ env.WIF_PROVIDER }}", service_account: "${{ env.DEPLOYER_SA }}" }
+      - uses: hashicorp/setup-terraform@v3
+      - run: cd terraform/live/customers && terraform init && terraform plan -no-color
+  apply:
+    needs: validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: prod        # manual approval gate configured on this GitHub environment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with: { workload_identity_provider: "${{ env.WIF_PROVIDER }}", service_account: "${{ env.DEPLOYER_SA }}" }
+      - uses: hashicorp/setup-terraform@v3
+      - run: cd terraform/live/customers && terraform init && terraform apply -auto-approve
+      # GKE products: helm upgrade --install <product> helm/charts/product -n <product> --create-namespace \
+      #   -f helm/values/env-<env>.yaml -f <(terraform output -json gke_helm_values | jq ...)

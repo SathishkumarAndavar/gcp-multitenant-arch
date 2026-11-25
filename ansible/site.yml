@@ -1,0 +1,15 @@
+# Run from the Ansible runner MIG (private, no external IP). Configures MIG-based product VMs per customer.
+- hosts: "tag_app_{{ product }}"
+  become: true
+  vars:
+    product: legacy-erp
+  tasks:
+    - name: Render customer config from instance metadata
+      ansible.builtin.template:
+        src: app.env.j2
+        dest: "/etc/{{ product }}/app.env"
+        mode: "0640"
+      notify: restart app
+  handlers:
+    - name: restart app
+      ansible.builtin.systemd: { name: "{{ product }}", state: restarted }

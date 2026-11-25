@@ -1,0 +1,31 @@
+# Release catalog: single source of truth for WHO runs WHAT version WHERE.
+# Version divergence = different `version` per customer, per env (env_versions), plus customer `config` overrides.
+customers:
+  acme:
+    network_index: 1            # unique per customer (0-255); drives GKE CIDR allocation
+    region: us-central1
+    domain: acme.example.com
+    envs: [dev, stage, uat, prod]
+    products:
+      billing:                  # Cloud Run
+        runtime: cloudrun
+        version: "2.4.1"        # prod/uat/stage default
+        env_versions: { dev: "2.5.0-rc1" }   # dev runs ahead of prod
+        config: { FEATURE_NEW_INVOICE: "on", TAX_REGION: "US" }
+      reports:                  # GKE
+        runtime: gke
+        version: "1.9.0"
+  globex:
+    network_index: 2
+    region: europe-west1
+    domain: globex.example.com
+    envs: [dev, stage, uat, prod]
+    products:
+      billing:
+        runtime: cloudrun
+        version: "2.3.7"        # same product, older version than acme
+        config: { TAX_REGION: "EU", CUSTOM_BRANDING: "globex" }
+      legacy-erp:               # Instance groups
+        runtime: mig
+        version: "3.0.2"
+        canary: { version: "3.1.0", percent: 5 }   # canary on a 2nd instance template

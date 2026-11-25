@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "product.name" . }}
+  labels: {{- include "product.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels: {{- include "product.selector" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 25%, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: {{- include "product.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "product.name" . }}
+      securityContext:
+        runAsNonRoot: true
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: app
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: {{ .Values.containerPort }} }
+          envFrom:
+            - configMapRef: { name: {{ include "product.name" . }}-config }
+            {{- range .Values.secrets }}
+            - secretRef: { name: {{ . }} }
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: {{ .Values.probes.path }}, port: http }
+          livenessProbe:
+            httpGet: { path: {{ .Values.probes.path }}, port: http }
+            initialDelaySeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - { name: tmp, emptyDir: {} }
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "product.selector" . | nindent 14 }}
